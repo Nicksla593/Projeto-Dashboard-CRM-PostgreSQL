@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Case Mercattone — PostgreSQL · DAX · Power BI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --canvas: #12151b;
+    --panel: #1a1e26;
+    --panel-hover: #1f2430;
+    --grid-dot: #232833;
+    --line: #2a303c;
+    --teal: #3ddac2;
+    --teal-dim: #2a7a6c;
+    --amber: #f2a65a;
+    --gold: #f2c14e;
+    --text: #e8eaed;
+    --text-muted: #8a8f9c;
+    --text-faint: #565c68;
+  }
+
+  *{ box-sizing: border-box; margin:0; padding:0; }
+  html{ scroll-behavior: smooth; }
+
+  body{
+    background:
+      radial-gradient(circle at 1px 1px, var(--grid-dot) 1px, transparent 1px) 0 0/28px 28px,
+      var(--canvas);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection{ background: var(--teal-dim); color: #fff; }
+
+  .wrap{ max-width: 920px; margin: 0 auto; padding: 0 28px 120px; }
+
+  /* ---------- HEADER ---------- */
+  header{ padding: 90px 0 60px; }
+
+  .status-bar{
+    display:flex; align-items:center; gap: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; color: var(--text-muted);
+    letter-spacing: 0.02em; margin-bottom: 34px;
+  }
+
+  .status-dot{
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--teal);
+    box-shadow: 0 0 0 3px rgba(61,218,194,0.14);
+    animation: pulse 2.4s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes pulse{ 0%,100%{ opacity:1; } 50%{ opacity:0.45; } }
+
+  h1{
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: clamp(34px, 5vw, 50px);
+    line-height: 1.12; letter-spacing: -0.01em;
+    max-width: 680px;
+  }
+  h1 span{ color: var(--text-muted); font-weight: 500; }
+
+  header p.sub{
+    margin-top: 20px; max-width: 620px;
+    color: var(--text-muted); font-size: 16px;
+  }
+  header p.sub b{ color: var(--text); font-weight: 500; }
+
+  .meta-row{
+    display:flex; flex-wrap: wrap; gap: 28px;
+    margin-top: 40px; padding-top: 28px;
+    border-top: 1px solid var(--line);
+  }
+  .meta-item{ font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  .meta-item .k{ color: var(--text-faint); display:block; margin-bottom: 4px; }
+  .meta-item .v{ color: var(--text); font-size: 13px; }
+
+  /* ---------- SEÇÕES ---------- */
+  .section{ margin-top: 72px; }
+
+  .section-label{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--teal);
+    margin-bottom: 8px;
+  }
+
+  .section h2{
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600; font-size: 26px;
+    letter-spacing: -0.01em; margin-bottom: 14px;
+  }
+
+  .section > p{
+    color: var(--text-muted); font-size: 15px;
+    max-width: 640px; margin-bottom: 28px;
+  }
+  .section > p b{ color: var(--text); font-weight: 500; }
+
+  /* ---------- ETAPAS DO PROJETO ---------- */
+  .stages{ display:grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+
+  .stage{
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 22px;
+    position: relative;
+  }
+  .stage:not(:last-child)::after{
+    content:'→'; position:absolute; right:-14px; top:50%;
+    transform: translateY(-50%); color: var(--text-faint);
+    font-size: 15px; z-index: 2;
+  }
+  .stage .num{
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--amber); margin-bottom: 10px; display:block;
+  }
+  .stage h3{
+    font-family: 'Space Grotesk', sans-serif; font-weight: 600;
+    font-size: 16px; margin-bottom: 8px;
+  }
+  .stage p{ color: var(--text-muted); font-size: 13.5px; line-height: 1.55; }
+
+  /* ---------- MODELO DE DADOS ---------- */
+  .er{ display:grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+
+  .table-card{
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; overflow: hidden;
+  }
+  .table-card .thead{
+    display:flex; justify-content: space-between; align-items:center;
+    padding: 14px 18px; border-bottom: 1px solid var(--line);
+    background: #161a21;
+  }
+  .table-card .tname{
+    font-family: 'JetBrains Mono', monospace; font-size: 13.5px;
+    color: var(--teal);
+  }
+  .table-card .rows{
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--text-faint);
+  }
+  .table-card ul{ list-style:none; padding: 12px 18px 16px; }
+  .table-card li{
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    color: var(--text-muted); padding: 3.5px 0;
+  }
+  .table-card li .pk{ color: var(--gold); }
+  .table-card li .fk{ color: var(--amber); }
+
+  /* ---------- MEDIDAS DAX ---------- */
+  .dax-groups{ display:grid; gap: 14px; }
+
+  .dax-group{
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 20px 22px;
+  }
+  .dax-group .gtitle{
+    font-family: 'Space Grotesk', sans-serif; font-weight: 600;
+    font-size: 15px; margin-bottom: 12px;
+    display:flex; align-items:center; gap: 8px;
+  }
+  .dax-group .gtitle .gdot{ width:8px; height:8px; border-radius:50%; }
+
+  .measures{ display:flex; flex-wrap:wrap; gap: 8px; }
+  .measure{
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    color: var(--text); background: #10131a;
+    border: 1px solid var(--line); border-radius: 5px;
+    padding: 6px 11px;
+  }
+
+  /* ---------- DASHBOARD ---------- */
+  .pages{ display:grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+
+  .page-card{
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 22px;
+    transition: border-color 0.2s ease, background 0.2s ease;
+  }
+  .page-card:hover{ border-color: #333a48; background: var(--panel-hover); }
+  .page-card .ptag{
+    font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--amber); margin-bottom: 10px; display:block;
+  }
+  .page-card h3{
+    font-family: 'Space Grotesk', sans-serif; font-weight: 600;
+    font-size: 17px; margin-bottom: 8px;
+  }
+  .page-card p{ color: var(--text-muted); font-size: 13.5px; line-height: 1.55; }
+
+  /* ---------- DOWNLOADS / LINKS ---------- */
+  .cta-box{
+    margin-top: 72px; padding: 32px;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px;
+    display:flex; justify-content: space-between; align-items: center;
+    gap: 24px; flex-wrap: wrap;
+  }
+  .cta-box .cta-text h3{
+    font-family:'Space Grotesk',sans-serif; font-weight:600;
+    font-size:18px; margin-bottom:6px;
+  }
+  .cta-box .cta-text p{ color:var(--text-muted); font-size:14px; max-width:420px; }
+  .cta-box .cta-text code{
+    font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--teal);
+  }
+
+  .btn-row{ display:flex; gap:10px; flex-wrap:wrap; }
+
+  .repo-link{
+    display:inline-flex; align-items:center; gap: 10px;
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+    color: var(--text); text-decoration: none;
+    background: #10131a; border: 1px solid var(--line);
+    border-radius: 8px; padding: 12px 18px;
+    transition: border-color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+  }
+  .repo-link:hover{
+    border-color: var(--teal-dim); background: var(--panel-hover);
+    transform: translateY(-1px);
+  }
+  .repo-link .arrow{ color: var(--text-muted); }
+
+  /* ---------- FOOTER ---------- */
+  footer{
+    margin-top: 90px; padding-top: 36px;
+    border-top: 1px solid var(--line);
+    display:flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 20px;
+  }
+  footer .note{
+    color: var(--text-faint); font-size: 13px;
+    max-width: 460px; line-height: 1.6;
+  }
+  footer a{ color: var(--teal); text-decoration:none; }
+  .badge-count{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; color: var(--teal);
+  }
+
+  @media (max-width: 700px){
+    header{ padding: 64px 0 44px; }
+    .stages{ grid-template-columns: 1fr; }
+    .stage:not(:last-child)::after{ content:'↓'; right:auto; left:50%; top:auto; bottom:-16px; transform:translateX(-50%); }
+    .er, .pages{ grid-template-columns: 1fr; }
+    footer{ flex-direction: column; align-items: flex-start; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .status-dot{ animation: none; }
+    html{ scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <div class="status-bar">
+      <span class="status-dot"></span>
+      PROJETO DE DADOS · POSTGRESQL → DAX → POWER BI
+    </div>
+
+    <h1>Case Mercattone<br><span>do banco de dados ao dashboard.</span></h1>
+
+    <p class="sub">Projeto completo de analytics para um e-commerce gamer fictício: modelagem e carga do banco relacional em <b>PostgreSQL</b>, criação de <b>17 medidas DAX</b> e construção de um <b>dashboard executivo de 4 páginas no Power BI</b> — com IA integrada ao processo de modelagem e design.</p>
+
+    <div class="meta-row">
+      <div class="meta-item"><span class="k">BANCO</span><span class="v">PostgreSQL 17</span></div>
+      <div class="meta-item"><span class="k">VOLUMETRIA</span><span class="v">50 mil pedidos · 5 mil clientes</span></div>
+      <div class="meta-item"><span class="k">MÉTRICAS</span><span class="v">17 medidas DAX</span></div>
+      <div class="meta-item"><span class="k">BI</span><span class="v">Power BI · 4 páginas</span></div>
+    </div>
+  </header>
+
+  <!-- ETAPAS -->
+  <div class="section">
+    <div class="section-label">Como o projeto foi construído</div>
+    <h2>Três etapas, uma stack de ponta a ponta</h2>
+    <p>O fluxo replica o ciclo real de um projeto de BI: dados brutos estruturados em banco relacional, camada semântica com métricas de negócio e visualização executiva para tomada de decisão.</p>
+
+    <div class="stages">
+      <div class="stage">
+        <span class="num">ETAPA 01</span>
+        <h3>Banco de dados</h3>
+        <p>Modelagem relacional em PostgreSQL com 3 tabelas integradas por chaves estrangeiras: campanhas de mídia, clientes e pedidos.</p>
+      </div>
+      <div class="stage">
+        <span class="num">ETAPA 02</span>
+        <h3>Métricas DAX</h3>
+        <p>17 medidas de negócio criadas em tabela dedicada (_Medidas), cobrindo receita, aquisição, CRM e comportamento multicanal.</p>
+      </div>
+      <div class="stage">
+        <span class="num">ETAPA 03</span>
+        <h3>Dashboard Power BI</h3>
+        <p>Relatório de 4 páginas com tabela calendário (dCalendario), segmentação por faixa etária e visão executiva consolidada.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODELO DE DADOS -->
+  <div class="section">
+    <div class="section-label">Etapa 01 · PostgreSQL</div>
+    <h2>Modelo de dados</h2>
+    <p>Banco transacional simulando a operação de um e-commerce gamer: <b>8 campanhas de aquisição</b> (Google Ads, Meta, TikTok, SEO, afiliados e mais), <b>5.000 clientes</b> com perfil demográfico e <b>50.000 pedidos</b> em categorias como console, cadeira gamer, mouse e headset. Dados 100% sintéticos.</p>
+
+    <div class="er">
+      <div class="table-card">
+        <div class="thead"><span class="tname">campanhas</span><span class="rows">8 registros</span></div>
+        <ul>
+          <li><span class="pk">🔑 campanha_id</span> · integer</li>
+          <li>canal · varchar — Google Ads, Meta, TikTok…</li>
+          <li>nome · varchar</li>
+          <li>custo · numeric — investimento por campanha</li>
+        </ul>
+      </div>
+
+      <div class="table-card">
+        <div class="thead"><span class="tname">clientes</span><span class="rows">5.000 registros</span></div>
+        <ul>
+          <li><span class="pk">🔑 cliente_id</span> · integer</li>
+          <li>cidade / estado · perfil geográfico</li>
+          <li>sexo / idade · perfil demográfico</li>
+          <li><span class="fk">⤷ campanha_aquisicao_id</span> · FK campanhas</li>
+        </ul>
+      </div>
+
+      <div class="table-card">
+        <div class="thead"><span class="tname">pedidos</span><span class="rows">50.000 registros</span></div>
+        <ul>
+          <li><span class="pk">🔑 pedido_id</span> · bigint</li>
+          <li><span class="fk">⤷ cliente_id</span> · FK clientes</li>
+          <li><span class="fk">⤷ campanha_id</span> · FK campanhas</li>
+          <li>data_pedido / categoria / valor / status</li>
+        </ul>
+      </div>
+
+      <div class="table-card">
+        <div class="thead"><span class="tname">dCalendario</span><span class="rows">dimensão · DAX</span></div>
+        <ul>
+          <li>Date · granularidade diária</li>
+          <li>Ano-Mês · para análise de evolução</li>
+          <li>Criada no Power BI para inteligência temporal</li>
+          <li>+ coluna derivada faixa_etaria em clientes</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- MEDIDAS DAX -->
+  <div class="section">
+    <div class="section-label">Etapa 02 · Linguagem DAX</div>
+    <h2>17 medidas de negócio</h2>
+    <p>Camada semântica organizada em tabela dedicada, cobrindo os principais indicadores de um e-commerce orientado a marketing e CRM:</p>
+
+    <div class="dax-groups">
+      <div class="dax-group">
+        <div class="gtitle"><span class="gdot" style="background:var(--teal)"></span>Receita & Vendas</div>
+        <div class="measures">
+          <span class="measure">Receita Total</span>
+          <span class="measure">Quantidade de Pedidos</span>
+          <span class="measure">Ticket Médio</span>
+          <span class="measure">Receita por Cliente</span>
+          <span class="measure">Pedidos por Cliente</span>
+        </div>
+      </div>
+
+      <div class="dax-group">
+        <div class="gtitle"><span class="gdot" style="background:var(--amber)"></span>Aquisição & Marketing</div>
+        <div class="measures">
+          <span class="measure">CAC</span>
+          <span class="measure">LTV Simplificado</span>
+          <span class="measure">LTV / CAC</span>
+          <span class="measure">ROI Campanha</span>
+          <span class="measure">Custo Campanha Aquisição</span>
+          <span class="measure">Clientes Adquiridos</span>
+        </div>
+      </div>
+
+      <div class="dax-group">
+        <div class="gtitle"><span class="gdot" style="background:var(--gold)"></span>CRM & Comportamento</div>
+        <div class="measures">
+          <span class="measure">Clientes Cadastrados</span>
+          <span class="measure">Clientes Compradores</span>
+          <span class="measure">Clientes sem Pedido</span>
+          <span class="measure">Clientes VIP</span>
+          <span class="measure">Clientes Multicanal</span>
+          <span class="measure">Canais Distintos</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="section">
+    <div class="section-label">Etapa 03 · Power BI</div>
+    <h2>Dashboard executivo em 4 páginas</h2>
+    <p>Cada página responde a uma pergunta de negócio diferente, do panorama geral à análise de canais:</p>
+
+    <div class="pages">
+      <div class="page-card">
+        <span class="ptag">Página 01</span>
+        <h3>Visão Executiva</h3>
+        <p>KPIs consolidados de receita, pedidos e ticket médio com evolução temporal — o panorama para a liderança em uma tela.</p>
+      </div>
+      <div class="page-card">
+        <span class="ptag">Página 02</span>
+        <h3>CRM e Clientes</h3>
+        <p>Base de clientes segmentada por perfil demográfico, faixa etária e geografia, com identificação de clientes VIP e inativos.</p>
+      </div>
+      <div class="page-card">
+        <span class="ptag">Página 03</span>
+        <h3>Campanhas e Aquisição</h3>
+        <p>Performance de cada canal de mídia com CAC, LTV/CAC e ROI por campanha — onde o investimento em marketing se paga.</p>
+      </div>
+      <div class="page-card">
+        <span class="ptag">Página 04</span>
+        <h3>Comportamento Multicanal</h3>
+        <p>Análise de clientes que compram por múltiplos canais e categorias, revelando padrões de recompra e engajamento.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- IA NO PROCESSO -->
+  <div class="section">
+    <div class="section-label">Diferencial</div>
+    <h2>IA integrada ao fluxo de trabalho</h2>
+    <p>O projeto foi construído com IA como copiloto em todas as etapas: <b>ChatGPT</b> no apoio à modelagem do banco e à escrita das medidas DAX, e <b>Claude integrado ao Power BI</b> no refinamento do design visual do dashboard — replicando o fluxo de trabalho moderno de um analista de dados.</p>
+  </div>
+
+  <!-- DOWNLOADS -->
+  <div class="cta-box">
+    <div class="cta-text">
+      <h3>Explorar os arquivos do projeto</h3>
+      <p>O dump completo do banco (<code>.sql</code>) e o dashboard (<code>.pbix</code>) estão disponíveis no repositório para download e inspeção.</p>
+    </div>
+    <div class="btn-row">
+      <a class="repo-link" href="https://github.com/Nicksla593/Projeto-Dashboard-CRM-PostgreSQL" target="_blank" rel="noopener">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.34-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.17 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6.01 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.65.24 2.87.12 3.17.77.84 1.24 1.91 1.24 3.22 0 4.6-2.8 5.62-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58C20.57 22.29 24 17.79 24 12.5 24 5.87 18.63.5 12 .5Z"/></svg>
+        Ver repositório
+        <span class="arrow">↗</span>
+      </a>
+    </div>
+  </div>
+
+  <footer>
+    <div class="note">Projeto de estudo com dados 100% fictícios, desenvolvido como prática de modelagem de dados, DAX e visualização — aplicável a operações de CRM, marketing e e-commerce.<br><br>
+    <span style="color:var(--text);">Nicolas Vannucci Barbosa</span> · <a href="https://www.linkedin.com/in/nicolas-vannucci-barbosa-414235338/" target="_blank" rel="noopener">LinkedIn</a> · <a href="https://mail.google.com/mail/?view=cm&fs=1&to=nickvannucci2013@gmail.com" target="_blank" rel="noopener">nickvannucci2013@gmail.com</a></div>
+    <div class="badge-count">POSTGRESQL · DAX · POWER BI</div>
+  </footer>
+
+</div>
+
+</body>
+</html>
